@@ -21,7 +21,7 @@ const MQTT_URL = process.env.MQTT_URL || "";          // e.g. mqtt://localhost:1
 const MQTT_PORT = Number(process.env.MQTT_PORT) || 1883;
 // Real stations report every 4 h. The demo uses 30 s so the fault check is visible.
 const HEALTH_MS = (Number(process.env.HEALTH_INTERVAL_S) || 30) * 1000;
-const DATA_FILE = path.join(ROOT, "data", "incidents.json");
+const DATA_FILE = path.join(__dirname, "data", "incidents.json");
 
 const log = (...a) => console.log(new Date().toLocaleTimeString(), ...a);
 
@@ -51,10 +51,10 @@ function station(id) {
 // ---------- WebSocket to consoles ----------
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(ROOT, "public")));
+app.use(express.static(path.join(ROOT, "frontend_console")));
 app.use("/vendor/leaflet", express.static(path.join(ROOT, "node_modules", "leaflet", "dist")));
 app.use("/vendor/mqtt", express.static(path.join(ROOT, "node_modules", "mqtt", "dist")));
-app.get("/station", (req, res) => res.sendFile(path.join(ROOT, "public", "station.html")));
+app.use("/station", express.static(path.join(ROOT, "station", "simulator"), { index: "screen.html" }));
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });       // console updates
 const mqttWs = new WebSocketServer({ noServer: true });    // MQTT over WebSocket for the browser station screen

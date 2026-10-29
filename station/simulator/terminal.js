@@ -19,7 +19,7 @@ const ID = arg("id", "st07");
 const URL = arg("url", process.env.MQTT_URL || "mqtt://localhost:1883");
 const HEALTH_S = Number(arg("health", process.env.HEALTH_INTERVAL_S || 30));
 const AUTO = args.includes("--auto");
-const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config", "stations.json"), "utf8")).find((s) => s.id === ID) || { lat: 28.6024, lon: -81.2001 };
+const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "config", "stations.json"), "utf8")).find((s) => s.id === ID) || { lat: 28.6024, lon: -81.2001 };
 
 const T = (s) => `beacon/${ID}/${s}`;
 // Sequence seeded from the clock so alert ids never repeat between runs (the ESP32 keeps its counter in NVS)
