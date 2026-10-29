@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BEACON Dispatch</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark"></span>B.E.A.C.O.N. Dispatch</div>
+  <div class="top-right">
+    <span id="openCount" class="count">0 open</span>
+    <span id="conn" class="conn">Connecting…</span>
+    <span id="clock" class="clock"></span>
+    <a class="station-link" href="/station" target="_blank" rel="noopener">Open station screen</a>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="col list">
+    <h2>Incidents</h2>
+    <div id="incidents" class="incidents"><p class="empty">No incidents yet. Press <kbd>a</kbd> in the station simulator to raise one.</p></div>
+    <h2>Stations</h2>
+    <div id="stations" class="stations"></div>
+  </aside>
+
+  <section class="col mapcol"><div id="map"></div></section>
+
+  <aside class="col detail" id="detail">
+    <div class="placeholder">
+      <h2>No incident selected</h2>
+      <p>New alerts open here automatically. Acknowledge first, then talk to the caller.</p>
+    </div>
+  </aside>
+</main>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

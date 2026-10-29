@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BEACON Station Simulator</title>
+<link rel="stylesheet" href="station.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark"></span>B.E.A.C.O.N. Station <span id="sid">st07</span><span class="tag">simulator</span></div>
+  <div class="top-right">
+    <span id="link" class="link-pill">Connecting…</span>
+    <a href="/" target="_blank" rel="noopener">Open dispatch console</a>
+  </div>
+</header>
+
+<div id="takeover" class="takeover" hidden>
+  <p><strong>This station is open in another tab.</strong> Two copies of the same station knock each other offline, so this tab has stopped. Use the newer tab, or take over here.</p>
+  <button type="button" id="takeBack">Use this tab instead</button>
+</div>
+<main class="layout">
+  <section class="door" aria-label="Station front door">
+    <div class="strobe-wrap">
+      <div id="strobe" class="strobe" aria-hidden="true"></div>
+      <span class="part-label">Strobe (top of tower)</span>
+    </div>
+
+    <div class="bezel">
+      <div id="screen" class="screen" data-state="off" aria-live="polite">
+        <!-- OFF -->
+        <div class="view v-off"><p>Screen off · nobody nearby</p></div>
+
+        <!-- HOME -->
+        <div class="view v-home">
+          <div class="bar"><strong>B.E.A.C.O.N.</strong><span id="clock"></span><span id="sname"></span></div>
+          <div class="home-grid">
+            <button id="touchSos" class="sos" type="button">
+              <span class="sos-big">EMERGENCY</span>
+              <span class="sos-small">Touch here or press the red button to reach campus police</span>
+            </button>
+            <div class="tiles">
+              <div class="tile"><b>Walking directions</b><span>Library, Student Union, parking garages</span></div>
+              <div class="tile"><b>Campus information</b><span>Shuttle times, building hours</span></div>
+              <div class="tile"><b>Can't hear well?</b><span>Everything the dispatcher says also appears here as text</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SENDING -->
+        <div class="view v-sending">
+          <p class="huge">Sending your alert…</p>
+          <p class="mid">Stay near the station if it is safe.</p>
+          <p class="small" id="attempt">Attempt 1</p>
+        </div>
+
+        <!-- INCIDENT -->
+        <div class="view v-incident">
+          <div class="banner">Help is on the way</div>
+          <div id="talking" class="talking" hidden>Recording… release the red button to send</div>
+          <div id="msgs" class="msgs"><p class="hint">Messages from the dispatcher will appear here.</p></div>
+          <div class="replies">
+            <button type="button" data-reply="I'm OK">I'm OK</button>
+            <button type="button" data-reply="I need medical help">I need medical help</button>
+            <button type="button" data-reply="I can't talk right now">I can't talk right now</button>
+          </div>
+          <p class="hold">Hold the red button to talk</p>
+        </div>
+
+        <!-- CLOSED -->
+        <div class="view v-closed">
+          <p class="huge">Your call has ended</p>
+          <p class="mid">Stay safe. Press the red button again any time.</p>
+        </div>
+
+        <!-- FAULT -->
+        <div class="view v-fault">
+          <p class="huge">This station can't reach dispatch</p>
+          <p class="mid">If you are in danger, call 911.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-row">
+      <button id="panic" class="panic" type="button" aria-label="Panic button">
+        <span id="ring" class="ring" data-ring="off"></span>
+        <span class="cap"></span>
+      </button>
+      <div class="button-help">
+        <strong>Panic button</strong>
+        <span>Click to call for help. During a call, press and hold to talk.</span>
+        <span id="ringText" class="ring-text">Ring: off (nobody near)</span>
+      </div>
+    </div>
+  </section>
+
+  <aside class="controls" aria-label="Simulation controls">
+    <h2>Simulate</h2>
+    <div class="ctl-grid">
+      <button type="button" id="walk">Someone walks up<small>motion sensor</small></button>
+      <button type="button" id="knock">Knock or pry<small>ADXL345 tamper</small></button>
+      <button type="button" id="bang">Loud bang<small>sound flag</small></button>
+      <button type="button" id="idle">Go idle<small>modem sleeps, MQTT closed</small></button>
+      <button type="button" id="cut" class="danger">Lose power<small>tests the last-will message</small></button>
+    </div>
+    <p id="screenTimer" class="note"></p>
+
+    <h2>Station state</h2>
+    <dl class="state">
+      <dt>Screen</dt><dd id="stScreen">off</dd>
+      <dt>Link</dt><dd id="stLink">connecting</dd>
+      <dt>Incident</dt><dd id="stInc">none</dd>
+      <dt>Battery</dt><dd id="stBatt">86%</dd>
+    </dl>
+
+    <h2>Messages on the wire</h2>
+    <ol id="log" class="log"></ol>
+  </aside>
+</main>
+
+<script src="vendor/mqtt/mqtt.min.js"></script>
+<script src="station.js"></script>
+</body>
+</html>

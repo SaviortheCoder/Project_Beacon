@@ -1,0 +1,21 @@
+{
+  "name": "beacon-dispatch",
+  "version": "0.1.0",
+  "description": "B.E.A.C.O.N. dispatch backend, MQTT broker, station simulator and console (Senior Design I sample)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "station": "node src/station-sim.js",
+    "station2": "node src/station-sim.js --id st03"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "aedes": "^0.51.3",
+    "express": "^4.22.3",
+    "leaflet": "^1.9.4",
+    "mqtt": "^5.16.1",
+    "ws": "^8.22.0"
+  },
+  "private": true
+}
