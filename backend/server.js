@@ -14,6 +14,7 @@ const http = require("http");
 const express = require("express");
 const mqtt = require("mqtt");
 const { WebSocketServer, createWebSocketStream } = require("ws");
+const landmarks = require("./landmarks");
 
 const ROOT = path.join(__dirname, "..");
 const PORT = Number(process.env.PORT) || 3000;
@@ -21,6 +22,9 @@ const MQTT_URL = process.env.MQTT_URL || "";          // e.g. mqtt://localhost:1
 const MQTT_PORT = Number(process.env.MQTT_PORT) || 1883;
 // Real stations report every 4 h. The demo uses 30 s so the fault check is visible.
 const HEALTH_MS = (Number(process.env.HEALTH_INTERVAL_S) || 30) * 1000;
+// An idle station sleeps between reports, and the simulators stop reporting while idle,
+// so an idle station is only faulted after two missed real-station reports (2 x 4 h).
+const IDLE_HEALTH_MS = (Number(process.env.IDLE_HEALTH_INTERVAL_S) || 4 * 3600) * 1000;
 const DATA_FILE = path.join(__dirname, "data", "incidents.json");
 
 const log = (...a) => console.log(new Date().toLocaleTimeString(), ...a);
@@ -52,7 +56,7 @@ function station(id) {
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(ROOT, "frontend_console")));
-app.use("/vendor/leaflet", express.static(path.join(ROOT, "node_modules", "leaflet", "dist")));
+app.use("/vendor/maplibre", express.static(path.join(ROOT, "node_modules", "maplibre-gl", "dist")));
 app.use("/vendor/mqtt", express.static(path.join(ROOT, "node_modules", "mqtt", "dist")));
 app.use("/station", express.static(path.join(ROOT, "station", "simulator"), { index: "screen.html" }));
 const server = http.createServer(app);
@@ -107,6 +111,7 @@ function newIncident(stationId, kind, payload) {
     closedAt: null,
     lat: payload.lat ?? st.lat,
     lon: payload.lon ?? st.lon,
+    place: landmarks.describe({ lat: payload.lat ?? st.lat, lon: payload.lon ?? st.lon }),
     data: payload,
     messages: [],
   };
@@ -141,7 +146,8 @@ function handle(topic, buf) {
     pushStation(st);
   } else if (sub === "status") {
     st.status = text;                       // online | idle | offline (last will)
-    st.fault = text === "offline" ? "Connection dropped (last will)" : st.fault;
+    if (text === "offline") st.fault = "Connection dropped (last will)";
+    else if (text === "online" && st.fault?.startsWith("Connection dropped")) st.fault = null; // back on the broker
     log(`[status] ${sid} ${text}`);
     pushStation(st);
   } else if (sub === "reply") {
@@ -158,7 +164,8 @@ setInterval(() => {
   const now = Date.now();
   for (const st of stations.values()) {
     if (!st.lastHealthAt || st.status === "offline") continue;
-    const late = now - Date.parse(st.lastHealthAt) > 2 * HEALTH_MS + 5000;
+    const every = st.status === "idle" ? IDLE_HEALTH_MS : HEALTH_MS;
+    const late = now - Date.parse(st.lastHealthAt) > 2 * every + 5000;
     if (late && !st.fault) { st.fault = "Missed two health reports"; log(`[fault] ${st.id} missed two health reports`); pushStation(st); }
   }
 }, 5000);
@@ -170,6 +177,7 @@ function findInc(req, res) {
   return inc;
 }
 app.get("/api/state", (req, res) => res.json({ stations: [...stations.values()], incidents }));
+app.get("/api/landmarks", (req, res) => res.json({ safety: landmarks.safetyPoints() }));
 app.post("/api/incidents/:id/ack", (req, res) => {
   const inc = findInc(req, res); if (!inc) return;
   if (inc.state === "New") { inc.state = "Acknowledged"; inc.ackAt = new Date().toISOString(); }
@@ -225,4 +233,15 @@ app.post("/api/stations/:id/ping", (req, res) => {
   client.on("message", handle);
   client.on("error", (e) => log("[mqtt] " + e.message));
   server.listen(PORT, () => log(`[console] open http://localhost:${PORT}`));
+  describeStations();
 })();
+
+// ---------- Landmarks: plain-language station locations for the console ----------
+// Looked up in the background so the console starts at once; retried every 15 min until it works.
+async function describeStations() {
+  const ok = await landmarks.load([...stations.values()], log);
+  for (const st of stations.values()) { st.place = landmarks.describe(st); pushStation(st); }
+  for (const inc of incidents) if (!inc.place && inc.state !== "Resolved") { inc.place = landmarks.describe(inc); pushIncident(inc); }
+  broadcast({ type: "landmarks", safety: landmarks.safetyPoints() });
+  if (!ok) setTimeout(describeStations, 15 * 60 * 1000);
+}

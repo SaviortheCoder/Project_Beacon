@@ -13,7 +13,7 @@
   "dependencies": {
     "aedes": "^0.51.3",
     "express": "^4.22.3",
-    "leaflet": "^1.9.4",
+    "maplibre-gl": "5.24.1",
     "mqtt": "^5.16.1",
     "ws": "^8.22.0"
   },

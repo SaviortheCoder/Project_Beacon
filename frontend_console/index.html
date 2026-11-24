@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BEACON Dispatch</title>
-<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -26,7 +26,11 @@
     <div id="stations" class="stations"></div>
   </aside>
 
-  <section class="col mapcol"><div id="map"></div></section>
+  <section class="col mapcol">
+    <div id="map"></div>
+    <button class="btn map-fit" id="fitBtn" title="Zoom out to every station">All stations</button>
+    <div id="mapNote" class="map-note" hidden></div>
+  </section>
 
   <aside class="col detail" id="detail">
     <div class="placeholder">
@@ -36,7 +40,8 @@
   </aside>
 </main>
 
-<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/maplibre/maplibre-gl.js"></script>
+<script src="map_style.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

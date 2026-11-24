@@ -12,11 +12,44 @@ const CANNED = [
 ];
 
 // ---------- Map ----------
-// The public OpenStreetMap tiles are for the demo only (Section 8.6). Change TILE_URL for a self-hosted server.
-const TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-const map = L.map("map", { zoomControl: true }).setView([28.6024, -81.2001], 16);
-L.tileLayer(TILE_URL, { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+// Vector basemap drawn by MapLibre with our dark style (map_style.js). The map is created on the
+// first snapshot so it opens framed on the stations in config/stations.json, wherever they are.
+// Station pins are HTML markers so they keep the console's alert styling.
+let map = null, mapReady = false;
 const markers = new Map();
+let safety = [];
+const mapNote = (text) => { const n = $("mapNote"); n.textContent = text || ""; n.hidden = !text; };
+
+function stationBounds() {
+  const pts = [...state.stations.values()].filter((s) => s.lat != null);
+  if (!pts.length) return null;
+  const lons = pts.map((s) => s.lon), lats = pts.map((s) => s.lat);
+  return [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]];
+}
+function fitStations(animate) {
+  const b = stationBounds();
+  if (map && b) map.fitBounds(b, { padding: 90, maxZoom: 17, duration: animate ? 800 : 0 });
+}
+function initMap() {
+  if (map || !stationBounds()) return;
+  try {
+    map = new maplibregl.Map({
+      container: "map", style: BEACON_STYLE, bounds: stationBounds(), fitBoundsOptions: { padding: 90, maxZoom: 17 },
+      pitch: 45, bearing: -15, maxPitch: 70, attributionControl: false,
+    });
+  } catch (e) {
+    mapNote("This browser cannot draw the map (WebGL is turned off). Alerts, stations and messages still work.");
+    return;
+  }
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+  map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution:
+    '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>' }));
+  map.on("load", () => { mapReady = true; drawSafety(); });
+  map.on("error", (e) => {
+    if (/fetch|network|ajax|load/i.test(String(e.error?.message))) mapNote("Map tiles are not loading. Check the internet connection; alerts and messages still work.");
+  });
+  map.on("sourcedata", (e) => { if (e.sourceId === "omt" && e.tile) mapNote(""); }); // a basemap tile arrived
+}
 
 function pinClass(st) {
   const open = state.incidents.some((i) => i.station === st.id && i.state !== "Resolved");
@@ -25,15 +58,36 @@ function pinClass(st) {
   return st.status;
 }
 function drawMarker(st) {
-  if (st.lat == null) return;
-  const icon = L.divIcon({ className: "", html: `<div class="pin ${pinClass(st)}"></div>`, iconSize: [18, 18], iconAnchor: [9, 9] });
+  if (!map || st.lat == null) return;
   if (!markers.has(st.id)) {
-    const m = L.marker([st.lat, st.lon], { icon }).addTo(map);
-    m.on("click", () => { const inc = state.incidents.find((i) => i.station === st.id && i.state !== "Resolved"); if (inc) select(inc.id); });
-    markers.set(st.id, m);
-  } else markers.get(st.id).setIcon(icon);
-  markers.get(st.id).bindTooltip(`${esc(st.name)} · ${esc(st.status)}`);
+    const el = document.createElement("div");
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const inc = state.incidents.find((i) => i.station === st.id && i.state !== "Resolved");
+      if (inc) select(inc.id);
+    });
+    markers.set(st.id, { el, m: new maplibregl.Marker({ element: el, anchor: "left", offset: [-9, 0] }).setLngLat([st.lon, st.lat]).addTo(map) });
+  }
+  const { el } = markers.get(st.id), cls = pinClass(st);
+  el.className = `pin-wrap ${cls}`;
+  el.title = `${st.name} · ${st.status}`;
+  el.innerHTML = `<div class="pin ${esc(cls)}"></div><span class="pin-tag">${esc(st.name)}</span>`;
 }
+
+// AEDs and emergency phones from the backend's landmark lookup; vector tiles rarely include them.
+function drawSafety() {
+  if (!mapReady) return;
+  const data = { type: "FeatureCollection", features: safety.map((p) => ({ type: "Feature", geometry: { type: "Point", coordinates: [p.lon, p.lat] }, properties: { name: p.name, cat: p.cat } })) };
+  if (map.getSource("safety")) return map.getSource("safety").setData(data);
+  map.addSource("safety", { type: "geojson", data });
+  map.addLayer({ id: "safety-dot", type: "circle", source: "safety", minzoom: 15,
+    paint: { "circle-radius": 6, "circle-color": ["match", ["get", "cat"], "aed", "#ff5a6e", "#3ccf8e"], "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 } });
+  map.addLayer({ id: "safety-label", type: "symbol", source: "safety", minzoom: 16.5,
+    layout: { "text-field": ["get", "name"], "text-font": ["Noto Sans Bold"], "text-size": 11, "text-anchor": "left", "text-offset": [0.9, 0] },
+    paint: { "text-color": ["match", ["get", "cat"], "aed", "#ff8a98", "#7fe3b3"], "text-halo-color": "#1d2025", "text-halo-width": 1.5 } });
+}
+fetch("/api/landmarks").then((r) => r.json()).then((d) => { safety = d.safety || []; drawSafety(); }).catch(() => {});
+$("fitBtn").addEventListener("click", () => fitStations(true));
 
 // ---------- Sound on new alerts (browsers allow it after the first click) ----------
 let audio = null;
@@ -94,10 +148,10 @@ function renderDetail() {
   box.innerHTML = `
     <div class="d-head"><span class="badge ${esc(i.kind)}">${KIND[i.kind] || esc(i.kind)}</span><h3>${esc(st.name)}</h3><span class="pill ${i.state}">${i.state}</span></div>
     <div id="timer" class="timer ${i.state === "New" ? "" : "ok"}"></div>
+    ${whereCard(i.place || st.place, i, d)}
     <dl class="d-grid">
       <dt>Incident</dt><dd>${esc(i.id)}</dd>
       <dt>Trigger</dt><dd>${esc(i.trigger)}</dd>
-      <dt>Location</dt><dd>${i.lat?.toFixed?.(5) ?? "—"}, ${i.lon?.toFixed?.(5) ?? "—"} ${d.loc_src ? "(" + esc(d.loc_src) + ")" : ""}</dd>
       <dt>Battery</dt><dd>${d.soc != null ? d.soc + "% · " + d.batt_v + " V" : "—"}</dd>
       <dt>Signal</dt><dd>${d.rssi_dbm != null ? d.rssi_dbm + " dBm" : "—"}</dd>
       ${i.kind === "tamper" ? `<dt>Sensor</dt><dd>${esc(d.source || "")} ${d.peak_g ? d.peak_g + " g" : ""}</dd>` : ""}
@@ -114,6 +168,23 @@ function renderDetail() {
   const chat = $("chat"); chat.scrollTop = chat.scrollHeight;
   const inp = $("msgInput"); if (inp && draft) inp.value = draft; if (inp && hadFocus) inp.focus();
   tick();
+}
+
+// Where it is, in words first: the nearest landmark, the road, the nearest AED and police.
+// Coordinates stay at the bottom for the record.
+function whereCard(p, i, d) {
+  const coords = `${i.lat?.toFixed?.(5) ?? "—"}, ${i.lon?.toFixed?.(5) ?? "—"}${d.loc_src ? " · " + esc(d.loc_src) : ""}`;
+  if (!p) return `<div class="where"><div class="where-head">Location</div><div class="where-dim">Landmarks not loaded yet. Showing coordinates.</div><div class="where-coords">${coords}</div></div>`;
+  return `<div class="where">
+    <div class="where-head">${esc(p.headline || "No named landmark within 300 m")}</div>
+    ${p.road ? `<div class="where-road">${esc(p.road)}</div>` : ""}
+    <dl class="where-grid">
+      <dt>Nearest AED</dt><dd>${esc(p.aed || "None mapped nearby")}</dd>
+      <dt>Police</dt><dd>${esc(p.police || "None in the search area")}</dd>
+      ${p.around?.length ? `<dt>Also near</dt><dd>${p.around.slice(0, 3).map(esc).join("<br>")}</dd>` : ""}
+    </dl>
+    <div class="where-coords">${coords}</div>
+  </div>`;
 }
 
 function renderAll() { renderIncidents(); renderStations(); renderDetail(); }
@@ -166,10 +237,14 @@ function connect() {
     if (msg.type === "snapshot") {
       state.stations = new Map(msg.stations.map((s) => [s.id, s]));
       state.incidents = msg.incidents; state.healthMs = msg.healthMs;
+      initMap();
       if (!state.selected) state.selected = state.incidents.find((i) => i.state !== "Resolved")?.id || null;
       renderAll();
     } else if (msg.type === "station") {
       state.stations.set(msg.station.id, msg.station); renderStations();
+      if (state.incidents.some((i) => i.station === msg.station.id && i.id === state.selected)) renderDetail();
+    } else if (msg.type === "landmarks") {
+      safety = msg.safety || []; drawSafety();
     } else if (msg.type === "incident") {
       const n = msg.incident;
       const idx = state.incidents.findIndex((i) => i.id === n.id);
@@ -178,7 +253,9 @@ function connect() {
         state.incidents.unshift(n); beep();
         const cur = state.incidents.find((i) => i.id === state.selected);
         if (!cur || cur.state === "Resolved" || n.kind === "alert") state.selected = n.id;
-        const st = state.stations.get(n.station); if (st?.lat != null) map.panTo([st.lat, st.lon]);
+        const st = state.stations.get(n.station);
+        if (map && st?.lat != null && n.station === state.incidents.find((x) => x.id === state.selected)?.station)
+          map.flyTo({ center: [st.lon, st.lat], zoom: Math.max(map.getZoom(), 17.5), duration: 900 });
       }
       renderAll();
     }

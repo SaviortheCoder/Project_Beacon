@@ -44,7 +44,7 @@ npm start                 # terminal 1: backend + built-in broker + dispatcher's
 npm run station           # terminal 2: terminal station st07
 ```
 
-Open http://localhost:3000, then press `a` in the station terminal. The alert appears on the map and the console beeps (click the page once first so the browser allows sound). Click **Acknowledge** or press Space, send a message, then close the incident. The station terminal prints what its ring, screen and strobe would do.
+Open http://localhost:3000, then press `a` in the station terminal. The console needs internet for the map tiles and, on first start, the landmark lookup; without it, alerts and messages still work and the location shows as coordinates. The alert appears on the map and the console beeps (click the page once first so the browser allows sound). Click **Acknowledge** or press Space, send a message, then close the incident. The station terminal prints what its ring, screen and strobe would do.
 
 ### Browser station (no terminal needed)
 
@@ -74,12 +74,12 @@ Keys: `a` alert · `t` tamper · `s` sound flag · `o` "I'm OK" · `m` "I need m
 | Retained `status` topic: `online`, `idle` before a normal disconnect, last-will `offline` on a crash | Table 7.6 |
 | Fault after two missed health reports | §7.12 |
 | Caller replies ("I'm OK", "I need medical help") shown in the conversation | §2.3.1 |
+| Vector map (MapLibre) with a dark style, 3D buildings, road and place labels; opens framed on the stations in `config/stations.json` | §7.13 |
+| Incident location in words: nearest landmark, road, nearest AED and police, looked up from OpenStreetMap and cached weekly | §7.13 |
 
 ## Known bugs
 
-- **Online/offline flapping** when two copies of the same station id run at once (see the warning above).
-- **An idle station is marked as faulted** because the simulators stop sending health reports while idle. A real station still wakes to report on schedule.
-- **The "connection dropped" fault does not clear** when a station reconnects; it waits for the next health report.
+- **Online/offline flapping** when two copies of the same station id run at once (see the warning above). This is the broker doing its job; the backend logs a warning naming the station.
 
 ## Not built yet
 
@@ -88,4 +88,5 @@ Keys: `a` alert · `t` tamper · `s` sound flag · `o` "I'm OK" · `m` "I need m
 - HTTPS upload endpoint for photos and push-to-talk clips; transcription in Senior Design II
 - The real wake-up SMS through the 1NCE API
 - Dispatcher logins and roles
-- Map tiles: the public OpenStreetMap server is for the demo only (§8.6); `TILE_URL` in `frontend_console/app.js` switches to a self-hosted server
+- Self-hosted map tiles: the console uses the free OpenFreeMap vector tiles for the demo (§8.6); `TILES` and `GLYPHS` at the top of `frontend_console/map_style.js` switch to a self-hosted file
+- Landmark lookups use the public Overpass API once a week per station area (cached in `backend/data/landmarks.json`); a deployment would run its own
